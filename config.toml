@@ -1,0 +1,22 @@
+days_unwatched = 180
+library_names = []
+season_level = false
+sort_by = 'title'
+sort_order = 'asc'
+include_never_watched = true
+include_stale_watched = true
+
+[tautulli]
+url = ''
+api_key = ''
+verify_ssl = true
+
+[seerr]
+url = ''
+api_key = ''
+verify_ssl = true
+
+[cache]
+cache_enabled = true
+cache_file = '.cache/tautulli_report_cache.json'
+seer_cache_ttl_hours = 1
