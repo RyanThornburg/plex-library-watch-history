@@ -3,7 +3,7 @@ Classes for reading data from tautulli and seer and caching the data
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Generator, Optional
 
 import requests
@@ -21,17 +21,20 @@ class SeerrClient:
 
     url: str
     api_key: str
+    session: requests.Session = field(
+        init=False, default_factory=requests.Session, repr=False
+    )
     verify_ssl: bool = True
     endpoint: str = ""
 
     def __post_init__(self):
         self.url = self.url.rstrip("/")
         self.endpoint = f"{self.url}/api/v1"
+        self.session.headers["X-Api-Key"] = self.api_key
 
     def _get(self, path: str, **params: Any) -> dict[Any, Any]:
-        response = requests.get(
+        response = self.session.get(
             f"{self.endpoint}{path}",
-            headers={"X-Api-Key": self.api_key},
             params=params,
             verify=self.verify_ssl,
             timeout=API_TIMEOUT_SEC,
@@ -59,10 +62,6 @@ class SeerrClient:
     def fetch_all_requests(self) -> list[Any]:
         """fetch all requests"""
         return list(self.iter_requests())
-
-    def build_requester_maps(self):
-        """fetch live and build mapping in one call no caching"""
-        return self.build_maps_from_requests(self.fetch_all_requests())
 
     @staticmethod
     def build_maps_from_requests(
@@ -129,6 +128,9 @@ class TautulliClient:
 
     url: str
     api_key: str
+    session: requests.Session = field(
+        init=False, default_factory=requests.Session, repr=False
+    )
     verify_ssl: bool = True
     endpoint: str = ""
 
@@ -138,7 +140,7 @@ class TautulliClient:
 
     def _call(self, cmd: str, **params: Any) -> Any:
         query: dict[str, Any] = {"apikey": self.api_key, "cmd": cmd, **params}
-        response = requests.get(
+        response = self.session.get(
             self.endpoint, params=query, verify=self.verify_ssl, timeout=API_TIMEOUT_SEC
         )
         response.raise_for_status()
