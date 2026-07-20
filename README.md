@@ -3,9 +3,7 @@
 > [!NOTE]
 > While working on this I found [Tracearr](https://github.com/connorgallopo/tracearr) which covers most of what I was looking to do here. Because of that, I doubt there will be many updates to this as I test out and use Tracearr instead.
 
-A command-line tool that reports on unwatched and stale media in a Plex library. It reads
-watch history from Tautulli and, optionally, cross-references requests from a Jellyseerr or
-Overseerr instance ("seerr") to show who requested each item.
+A command-line tool that reports on unwatched and stale media in a Plex library.
 
 ## Features
 
@@ -21,8 +19,7 @@ Overseerr instance ("seerr") to show who requested each item.
 
 - Python 3.14 or newer
 - A running Tautulli instance with an API key
-- (Optional) A running Jellyseerr or Overseerr instance with an API key, if you want requester
-  attribution
+- (Optional) A Seerr instance with an API key (if you want requester data)
 
 ## Installation
 
@@ -133,7 +130,7 @@ Logs are written to the console and to `logs/main.log`
 ## TODO
 
 - [ ] improve speed/concurrent calls
-    - add a requests.Session() stored on class to reuse
+  - add a requests.Session() stored on class to reuse
 - [ ] use rich or other console output to make output easier to read
 
 ## License
