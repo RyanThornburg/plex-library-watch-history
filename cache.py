@@ -1,9 +1,11 @@
+"""cache.py"""
+
 import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +79,7 @@ class Cache:
 
     def get_show_seasons(
         self, show_rating_key: str, current_row: dict[str, Any]
-    ) -> Optional[list[Any]]:
+    ) -> list[Any] | None:
         """check cache if show exists/matches"""
 
         if not self.enabled:
@@ -107,7 +109,7 @@ class Cache:
             "seasons": seasons,
         }
 
-    def get_external_ids(self, rating_key: str) -> Optional[tuple[str, str]]:
+    def get_external_ids(self, rating_key: str) -> tuple[str, str] | None:
         """rating key should never change and be safe to cache once plex matches it"""
         if not self.enabled:
             return None
@@ -129,7 +131,7 @@ class Cache:
             "tvdb_id": tvdb_id,
         }
 
-    def get_seerr_requests(self, ttl_hours: int) -> Optional[list[Any]]:
+    def get_seerr_requests(self, ttl_hours: int) -> list[Any] | None:
         """check cache for seerr requests"""
 
         if not self.enabled:

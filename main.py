@@ -13,7 +13,7 @@ import logging.handlers
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from cache import Cache
 from clients import SeerrClient, TautulliClient
@@ -53,7 +53,7 @@ def _configure_logging() -> None:
     )
 
 
-def _to_datetime(epoch_val: str | None) -> Optional[datetime]:
+def _to_datetime(epoch_val: str | None) -> datetime | None:
     """clean up tautulli times"""
     if not epoch_val:
         return None
@@ -180,7 +180,7 @@ def extract_external_ids(metadata: dict[str, Any]) -> tuple[str, str]:
 
 
 def fetch_external_ids(
-    client: TautulliClient, rating_key: str, cache: Optional[Cache]
+    client: TautulliClient, rating_key: str, cache: Cache | None
 ) -> tuple[str, str]:
     """get tmdb or tvdb id for media item. check cache first otherwise call tautulli endpoint"""
     if cache:
@@ -204,7 +204,7 @@ def fetch_media_items(
     tv_season_requesters: dict[Any, Any],
     tv_show_requesters: dict[Any, Any],
     season_level: bool = False,
-    cache: Optional[Cache] = None,
+    cache: Cache | None = None,
 ) -> list[MediaItem]:
     """build out and return list of media items"""
 

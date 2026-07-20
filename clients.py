@@ -4,7 +4,7 @@ Classes for reading data from tautulli and seer and caching the data
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Generator, Optional
+from typing import Any, Generator
 
 import requests
 
@@ -94,7 +94,7 @@ class SeerrClient:
                 )
             )
 
-            media_type: Optional[str] = media.get("mediaType")
+            media_type: str | None = media.get("mediaType")
             tmdb_id = media.get("tmdbId")
             tvdb_id = media.get("tvdbId")
 
@@ -105,7 +105,7 @@ class SeerrClient:
                 tv_show_requesters.setdefault(tvdb_key, set()).add(username)
                 seasons_list: list[dict[str, Any]] = req.get("seasons", []) or []
                 for season in seasons_list:
-                    season_number: Optional[int] = season.get("seasonNumber")
+                    season_number: int | None = season.get("seasonNumber")
                     if season_number is not None:
                         tv_season_requesters.setdefault(
                             (tvdb_key, season_number), set()
@@ -166,8 +166,8 @@ class TautulliClient:
 
     def get_library_media_info(
         self,
-        section_id: Optional[str] = None,
-        rating_key: Optional[str] = None,
+        section_id: str | None = None,
+        rating_key: str | None = None,
         start: int = 0,
         length: int = 500,
     ) -> dict[str, Any]:
@@ -189,8 +189,8 @@ class TautulliClient:
 
     def iter_items(
         self,
-        section_id: Optional[str] = None,
-        rating_key: Optional[str] = None,
+        section_id: str | None = None,
+        rating_key: str | None = None,
         page_size: int = 500,
     ) -> Generator[Any, Any, None]:
         """
