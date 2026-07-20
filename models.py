@@ -5,11 +5,25 @@ Classes for reading data from tautulli and seer and caching the data
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Literal
 
 logger = logging.getLogger(__name__)
 
 UNKNOWN_REQUESTER = "Unknown"
 UNKNOWN_TITLE = "Unknown Title"
+
+# Tautulli's vocabulary for section/media type (Seerr uses "tv" instead of "show" - see clients.py)
+MEDIA_TYPE_MOVIE = "movie"
+MEDIA_TYPE_SHOW = "show"
+MEDIA_TYPE_SEASON = "season"
+
+SortBy = Literal["title", "last_watched", "requester"]
+SortOrder = Literal["asc", "desc"]
+GroupBy = Literal["none", "requester"]
+Status = Literal["never_watched", "stale_watched"]
+
+STATUS_NEVER_WATCHED: Status = "never_watched"
+STATUS_STALE_WATCHED: Status = "stale_watched"
 
 
 #################################################

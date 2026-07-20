@@ -1,7 +1,6 @@
 """Settings schema: CLI args -> config.toml -> field defaults, highest to lowest priority."""
 
 from pathlib import Path
-from typing import Literal
 
 from pydantic import BaseModel
 from pydantic_settings import (
@@ -10,6 +9,8 @@ from pydantic_settings import (
     SettingsConfigDict,
     TomlConfigSettingsSource,
 )
+
+from models import GroupBy, SortBy, SortOrder
 
 CONFIG_PATH = Path(__file__).parent / "config.toml"
 
@@ -77,9 +78,9 @@ class ReportSettings(BaseSettings):
     days_unwatched: int = 180
     library_names: list[str] = []
     season_level: bool = False
-    sort_by: Literal["title", "last_watched", "requester"] = "title"
-    sort_order: Literal["asc", "desc"] = "asc"
-    group_by: Literal["none", "requester"] | None = None
+    sort_by: SortBy = "title"
+    sort_order: SortOrder = "asc"
+    group_by: GroupBy | None = None
     include_never_watched: bool = True
     include_stale_watched: bool = True
     include_unknown_requester: bool = True

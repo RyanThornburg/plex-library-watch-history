@@ -8,9 +8,11 @@ from typing import Any, Generator
 
 import requests
 
-from models import UNKNOWN_REQUESTER, RequesterMaps
+from models import MEDIA_TYPE_MOVIE, UNKNOWN_REQUESTER, RequesterMaps
 
 API_TIMEOUT_SEC = 45
+# Seerr's vocabulary for media type ("tv" where Tautulli uses "show" - see models.py)
+_SEERR_MEDIA_TYPE_TV = "tv"
 logger = logging.getLogger(__name__)
 
 
@@ -96,9 +98,9 @@ class SeerrClient:
             tmdb_id = media.get("tmdbId")
             tvdb_id = media.get("tvdbId")
 
-            if media_type == "movie" and tmdb_id:
+            if media_type == MEDIA_TYPE_MOVIE and tmdb_id:
                 movie_requesters.setdefault(str(tmdb_id), set()).add(username)
-            elif media_type == "tv" and tvdb_id:
+            elif media_type == _SEERR_MEDIA_TYPE_TV and tvdb_id:
                 tvdb_key = str(tvdb_id)
                 tv_show_requesters.setdefault(tvdb_key, set()).add(username)
                 seasons_list: list[dict[str, Any]] = req.get("seasons", []) or []

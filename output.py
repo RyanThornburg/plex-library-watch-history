@@ -6,7 +6,13 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from models import MediaItem
+from models import (
+    STATUS_NEVER_WATCHED,
+    STATUS_STALE_WATCHED,
+    GroupBy,
+    MediaItem,
+    Status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +38,9 @@ def group_by_requester(items: list[MediaItem]) -> dict[str, list[MediaItem]]:
     return dict(sorted(groups.items(), key=lambda kv: kv[0].lower()))
 
 
-def format_line(item: MediaItem, status: str) -> str:
+def format_line(item: MediaItem, status: Status) -> str:
     when_str = ""
-    if status == "never_watched":
+    if status == STATUS_NEVER_WATCHED:
         when_str = (
             f"Never watched (added {item.added_at.strftime('%B %d, %Y')})"
             if item.added_at
@@ -48,10 +54,12 @@ def format_line(item: MediaItem, status: str) -> str:
     return f"{item.display_title} - {when_str} - {item.requester}"
 
 
-def print_section(items: list[MediaItem], status: str, group_by: str, days: int):
+def print_section(
+    items: list[MediaItem], status: Status, group_by: GroupBy | None, days: int
+):
     header = (
         f"NEVER WATCHED (added {days}+ days ago, 0 plays)"
-        if status == "never_watched"
+        if status == STATUS_NEVER_WATCHED
         else f"STALE (lasted watched {days}+ days ago)"
     )
     print(f"\n*** {header} ***")
@@ -74,7 +82,7 @@ def print_report(
     never_watched: list[MediaItem],
     stale_watched: list[MediaItem],
     days: int,
-    group_by: str,
+    group_by: GroupBy | None,
 ) -> None:
     summary = requester_summary(never_watched, stale_watched)
     print(f"\n*** REQUEST SUMMARY (not watched within {days} days) ***")
@@ -86,12 +94,12 @@ def print_report(
     else:
         print("NONE!")
 
-    print_section(never_watched, "never_watched", group_by, days)
-    print_section(stale_watched, "stale_watched", group_by, days)
+    print_section(never_watched, STATUS_NEVER_WATCHED, group_by, days)
+    print_section(stale_watched, STATUS_STALE_WATCHED, group_by, days)
 
 
 def _csv_row(
-    item: MediaItem, status: str, when: datetime | None
+    item: MediaItem, status: Status, when: datetime | None
 ) -> list[str | int | None]:
     return [
         status,
@@ -124,11 +132,9 @@ def export_csv(
                 "rating_key",
             ]
         )
-        for status, items, date_attr in (
-            ("never_watched", never_watched, "added_at"),
-            ("stale_watched", stale_watched, "last_played"),
-        ):
-            for item in items:
-                writer.writerow(_csv_row(item, status, getattr(item, date_attr)))
+        for item in never_watched:
+            writer.writerow(_csv_row(item, STATUS_NEVER_WATCHED, item.added_at))
+        for item in stale_watched:
+            writer.writerow(_csv_row(item, STATUS_STALE_WATCHED, item.last_played))
 
     logger.info("Output written to CSV file: %s", path)

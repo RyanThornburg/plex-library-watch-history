@@ -17,7 +17,17 @@ from typing import Any
 
 from cache import Cache
 from clients import SeerrClient, TautulliClient
-from models import UNKNOWN_REQUESTER, UNKNOWN_TITLE, MediaItem, RequesterMaps
+from models import (
+    MEDIA_TYPE_MOVIE,
+    MEDIA_TYPE_SEASON,
+    MEDIA_TYPE_SHOW,
+    UNKNOWN_REQUESTER,
+    UNKNOWN_TITLE,
+    MediaItem,
+    RequesterMaps,
+    SortBy,
+    SortOrder,
+)
 from output import export_csv, print_report
 from settings import ConnectionSettings, ReportSettings
 
@@ -66,7 +76,7 @@ def _to_datetime(epoch_val: str | None) -> datetime | None:
     return datetime.fromtimestamp(epoch_int, tz=timezone.utc)
 
 
-def make_sort_key(sort_by: str):
+def make_sort_key(sort_by: SortBy):
     """clean up sort key for never watched items"""
     epoch_min = datetime.min.replace(tzinfo=timezone.utc)
 
@@ -86,8 +96,8 @@ def make_sort_key(sort_by: str):
 def categorize_watches(
     items: list[MediaItem],
     days: int,
-    sort_by: str,
-    sort_order: str,
+    sort_by: SortBy,
+    sort_order: SortOrder,
     include_unknown: bool,
 ) -> tuple[list[MediaItem], list[MediaItem]]:
     """sort stale and watch history"""
@@ -114,7 +124,7 @@ def categorize_watches(
 def get_single_requester(item: MediaItem, requesters: RequesterMaps) -> str:
     """Look up the requester via the id maps built from seerr request list."""
 
-    if item.media_type == "movie":
+    if item.media_type == MEDIA_TYPE_MOVIE:
         return requesters.movies.get(item.moviedb_id, UNKNOWN_REQUESTER)
 
     # TV show or season
@@ -204,7 +214,9 @@ def fetch_media_items(
     libraries = client.get_libraries()
     # filter to just movie/shows
     libraries = [
-        lib for lib in libraries if lib.get("section_type") in ("movie", "show")
+        lib
+        for lib in libraries
+        if lib.get("section_type") in (MEDIA_TYPE_MOVIE, MEDIA_TYPE_SHOW)
     ]
 
     if library_names:
@@ -229,7 +241,7 @@ def fetch_media_items(
             # fetch guid ids for matching to seerr data
             tmdb_id, tvdb_id = fetch_external_ids(client, rating_key, cache)
 
-            if row_media_type == "show" and season_level:
+            if row_media_type == MEDIA_TYPE_SHOW and season_level:
                 show_title = row.get("title", UNKNOWN_TITLE)
 
                 season_rows = cache.get_show_seasons(rating_key, row) if cache else None
@@ -239,11 +251,11 @@ def fetch_media_items(
                         cache.set_show_seasons(rating_key, row, season_rows)
 
                 for season_row in season_rows:
-                    if season_row.get("media_type") != "season":
+                    if season_row.get("media_type") != MEDIA_TYPE_SEASON:
                         continue
                     item = MediaItem(
                         title=show_title,
-                        media_type="season",
+                        media_type=MEDIA_TYPE_SEASON,
                         library_name=section_name,
                         rating_key=str(season_row.get("rating_key", "")),
                         added_at=_to_datetime(season_row.get("added_at")),
@@ -351,7 +363,7 @@ def main():
     if not report.include_stale_watched:
         stale_watched = []
 
-    print_report(never_watched, stale_watched, days, str(report.group_by))
+    print_report(never_watched, stale_watched, days, report.group_by)
 
     if report.export_csv:
         export_csv(report.export_csv, never_watched, stale_watched)
