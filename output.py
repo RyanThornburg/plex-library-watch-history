@@ -1,6 +1,9 @@
+"""output.py"""
+
 import csv
 import logging
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 from models import MediaItem
@@ -87,6 +90,22 @@ def print_report(
     print_section(stale_watched, "stale_watched", group_by, days)
 
 
+def _csv_row(
+    item: MediaItem, status: str, when: datetime | None
+) -> list[str | int | None]:
+    return [
+        status,
+        item.title,
+        item.season_number,
+        item.media_type,
+        item.library_name,
+        when.strftime("%Y-%m-%d") if when else "",
+        item.play_count,
+        item.requester,
+        item.rating_key,
+    ]
+
+
 def export_csv(
     path: Path, never_watched: list[MediaItem], stale_watched: list[MediaItem]
 ):
@@ -105,35 +124,11 @@ def export_csv(
                 "rating_key",
             ]
         )
-        for item in never_watched:
-            when = item.added_at.strftime("%Y-%m-%d") if item.added_at else ""
-            writer.writerow(
-                [
-                    "never_watched",
-                    item.title,
-                    item.season_number,
-                    item.media_type,
-                    item.library_name,
-                    when,
-                    item.play_count,
-                    item.requester,
-                    item.rating_key,
-                ]
-            )
-        for item in stale_watched:
-            when = item.last_played.strftime("%Y-%m-%d") if item.last_played else ""
-            writer.writerow(
-                [
-                    "stale_watched",
-                    item.title,
-                    item.season_number,
-                    item.media_type,
-                    item.library_name,
-                    when,
-                    item.play_count,
-                    item.requester,
-                    item.rating_key,
-                ]
-            )
+        for status, items, date_attr in (
+            ("never_watched", never_watched, "added_at"),
+            ("stale_watched", stale_watched, "last_played"),
+        ):
+            for item in items:
+                writer.writerow(_csv_row(item, status, getattr(item, date_attr)))
 
     logger.info("Output written to CSV file: %s", path)
