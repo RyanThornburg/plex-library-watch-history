@@ -131,6 +131,7 @@ Logs are written to the console and to `logs/main.log`
 
 - [ ] use rich or other console output to make output easier to read
 - [ ] tests
+- [ ] auto delete/remove from arr and plex
 
 ## License
 
