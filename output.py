@@ -74,7 +74,7 @@ def print_report(
     group_by: str,
 ) -> None:
     summary = requester_summary(never_watched, stale_watched)
-    print("\n*** REQUEST SUMMARY (not watched within {days} days) ***")
+    print(f"\n*** REQUEST SUMMARY (not watched within {days} days) ***")
     if summary:
         print(f"{'Requester':<25} {'Never Watched':>14} {'Stale':>8} {'Total':>8}")
 
