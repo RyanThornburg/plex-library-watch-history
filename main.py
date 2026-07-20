@@ -313,7 +313,7 @@ def main():
         verify_ssl=config.tautulli.verify_ssl,
     )
 
-    cache = Cache(config.cache.cache_file, config.cache.cache_enabled)
+    cache = Cache(config.cache.cache_file, cache_enabled)
     if report.refresh_cache:
         cache.clear()
 
