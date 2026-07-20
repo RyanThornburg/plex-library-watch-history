@@ -231,21 +231,19 @@ def fetch_media_items(
 
         for row in client.iter_items(section_id=section_id):
             row_media_type = row.get("media_type", section_type)
-            show_rating_key = str(row.get("rating_key", ""))
+            rating_key = str(row.get("rating_key", ""))
 
             # fetch guid ids for matching to seerr data
-            tmdb_id, tvdb_id = fetch_external_ids(client, show_rating_key, cache)
+            tmdb_id, tvdb_id = fetch_external_ids(client, rating_key, cache)
 
             if row_media_type == "show" and season_level:
                 show_title = row.get("title", "Unknown Title")
 
-                season_rows = (
-                    cache.get_show_seasons(show_rating_key, row) if cache else None
-                )
+                season_rows = cache.get_show_seasons(rating_key, row) if cache else None
                 if season_rows is None:
-                    season_rows = list(client.iter_items(rating_key=show_rating_key))
+                    season_rows = list(client.iter_items(rating_key=rating_key))
                     if cache:
-                        cache.set_show_seasons(show_rating_key, row, season_rows)
+                        cache.set_show_seasons(rating_key, row, season_rows)
 
                 for season_row in season_rows:
                     if season_row.get("media_type") != "season":
