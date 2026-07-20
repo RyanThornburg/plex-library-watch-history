@@ -9,6 +9,9 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+UNKNOWN_REQUESTER = "Unknown"
+UNKNOWN_TITLE = "Unknown Title"
+
 
 #################################################
 # MediaItem
@@ -27,7 +30,7 @@ class MediaItem:
     moviedb_id: str = ""
     tvdb_id: str = ""
     season_number: Optional[int] = None
-    requester: str = field(default="Unknown")
+    requester: str = field(default=UNKNOWN_REQUESTER)
 
     @property
     def display_title(self) -> str:

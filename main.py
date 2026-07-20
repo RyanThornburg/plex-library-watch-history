@@ -17,7 +17,7 @@ from typing import Any, Optional
 
 from cache import Cache
 from clients import SeerrClient, TautulliClient
-from models import MediaItem
+from models import UNKNOWN_REQUESTER, UNKNOWN_TITLE, MediaItem
 from output import export_csv, print_report
 from settings import ConnectionSettings, ReportSettings
 
@@ -95,7 +95,7 @@ def categorize_watches(
     stale_watched: list[MediaItem] = []
 
     for item in items:
-        if not include_unknown and item.requester.lower() == "unknown":
+        if not include_unknown and item.requester == UNKNOWN_REQUESTER:
             continue
         if item.play_count == 0:
             if item.days_since_added is not None and item.days_since_added >= days:
@@ -120,14 +120,14 @@ def get_single_requester(
     """Look up the requester via the id maps built from seerr request list."""
 
     if item.media_type == "movie":
-        return movie_requesters.get(item.moviedb_id, "Unknown")
+        return movie_requesters.get(item.moviedb_id, UNKNOWN_REQUESTER)
 
     # TV show or season
     if item.season_number is not None:
         key = (item.tvdb_id, item.season_number)
         if key in tv_season_requesters:
             return tv_season_requesters[key]
-    return tv_show_requesters.get(item.tvdb_id, "Unknown")
+    return tv_show_requesters.get(item.tvdb_id, UNKNOWN_REQUESTER)
 
 
 def get_requesters(
@@ -237,7 +237,7 @@ def fetch_media_items(
             tmdb_id, tvdb_id = fetch_external_ids(client, rating_key, cache)
 
             if row_media_type == "show" and season_level:
-                show_title = row.get("title", "Unknown Title")
+                show_title = row.get("title", UNKNOWN_TITLE)
 
                 season_rows = cache.get_show_seasons(rating_key, row) if cache else None
                 if season_rows is None:
@@ -267,7 +267,7 @@ def fetch_media_items(
 
             # movie or whole show
             item = MediaItem(
-                title=row.get("title", "Unknown Title"),
+                title=row.get("title", UNKNOWN_TITLE),
                 media_type=row_media_type,
                 library_name=section_name,
                 rating_key=str(row.get("rating_key", "")),

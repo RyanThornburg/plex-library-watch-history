@@ -8,6 +8,8 @@ from typing import Any, Generator, Optional
 
 import requests
 
+from models import UNKNOWN_REQUESTER
+
 API_TIMEOUT_SEC = 45
 logger = logging.getLogger(__name__)
 
@@ -88,7 +90,7 @@ class SeerrClient:
                 or (
                     f"user#{requested_by['id']}"
                     if requested_by.get("id")
-                    else "Unknown"
+                    else UNKNOWN_REQUESTER
                 )
             )
 
