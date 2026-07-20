@@ -139,7 +139,7 @@ def get_requesters(
 ):
     """if using seerr, find who requested"""
 
-    cached_requests = cache.get_seerr_requests(ttl) if ttl else []
+    cached_requests = cache.get_seerr_requests(ttl) if ttl else None
     if cached_requests is not None:
         logger.info("Using cached Seerr requests")
         requests_list = cached_requests
