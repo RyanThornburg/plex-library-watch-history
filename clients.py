@@ -8,7 +8,7 @@ from typing import Any, Generator
 
 import requests
 
-from models import UNKNOWN_REQUESTER
+from models import UNKNOWN_REQUESTER, RequesterMaps
 
 API_TIMEOUT_SEC = 45
 logger = logging.getLogger(__name__)
@@ -66,14 +66,12 @@ class SeerrClient:
         return list(self.iter_requests())
 
     @staticmethod
-    def build_maps_from_requests(
-        requests_list: list[Any],
-    ) -> tuple[dict[str, str], dict[tuple[str, int], str], dict[str, str]]:
+    def build_maps_from_requests(requests_list: list[Any]) -> RequesterMaps:
         """
         convert seerr to lookup maps
-            - movie_requesters: str(tmdbid) -> names
-            - tv_season_requesters: (str(tvdbid), season_number) -> names
-            - tv_show_requesters: str(tvdbid) -> names (fallback or entire show requester)
+            - movies: str(tmdbid) -> names
+            - tv_seasons: (str(tvdbid), season_number) -> names
+            - tv_shows: str(tvdbid) -> names (fallback or entire show requester)
         """
 
         movie_requesters: dict[str, set[str]] = {}
@@ -114,10 +112,10 @@ class SeerrClient:
         def collapse(d: dict[Any, set[str]]) -> dict[Any, str]:
             return {k: ", ".join(sorted(v)) for k, v in d.items()}
 
-        return (
-            collapse(movie_requesters),
-            collapse(tv_season_requesters),
-            collapse(tv_show_requesters),
+        return RequesterMaps(
+            movies=collapse(movie_requesters),
+            tv_seasons=collapse(tv_season_requesters),
+            tv_shows=collapse(tv_show_requesters),
         )
 
 

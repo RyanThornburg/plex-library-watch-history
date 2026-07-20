@@ -13,6 +13,20 @@ UNKNOWN_TITLE = "Unknown Title"
 
 
 #################################################
+# RequesterMaps
+#################################################
+@dataclass
+class RequesterMaps:
+    """id -> requester name lookups built from Seerr's request list."""
+
+    movies: dict[str, str] = field(default_factory=dict[str, str])
+    tv_seasons: dict[tuple[str, int], str] = field(
+        default_factory=dict[tuple[str, int], str]
+    )
+    tv_shows: dict[str, str] = field(default_factory=dict[str, str])
+
+
+#################################################
 # MediaItem
 #################################################
 @dataclass

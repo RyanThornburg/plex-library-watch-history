@@ -17,7 +17,7 @@ from typing import Any
 
 from cache import Cache
 from clients import SeerrClient, TautulliClient
-from models import UNKNOWN_REQUESTER, UNKNOWN_TITLE, MediaItem
+from models import UNKNOWN_REQUESTER, UNKNOWN_TITLE, MediaItem, RequesterMaps
 from output import export_csv, print_report
 from settings import ConnectionSettings, ReportSettings
 
@@ -111,23 +111,18 @@ def categorize_watches(
     return never_watched, stale_watched
 
 
-def get_single_requester(
-    item: MediaItem,
-    movie_requesters: dict[Any, Any],
-    tv_season_requesters: dict[Any, Any],
-    tv_show_requesters: dict[Any, Any],
-) -> str:
+def get_single_requester(item: MediaItem, requesters: RequesterMaps) -> str:
     """Look up the requester via the id maps built from seerr request list."""
 
     if item.media_type == "movie":
-        return movie_requesters.get(item.moviedb_id, UNKNOWN_REQUESTER)
+        return requesters.movies.get(item.moviedb_id, UNKNOWN_REQUESTER)
 
     # TV show or season
     if item.season_number is not None:
         key = (item.tvdb_id, item.season_number)
-        if key in tv_season_requesters:
-            return tv_season_requesters[key]
-    return tv_show_requesters.get(item.tvdb_id, UNKNOWN_REQUESTER)
+        if key in requesters.tv_seasons:
+            return requesters.tv_seasons[key]
+    return requesters.tv_shows.get(item.tvdb_id, UNKNOWN_REQUESTER)
 
 
 def get_requesters(
@@ -136,7 +131,7 @@ def get_requesters(
     api_key: str,
     ttl: int | None,
     verify_ssl: bool = True,
-):
+) -> RequesterMaps:
     """if using seerr, find who requested"""
 
     cached_requests = cache.get_seerr_requests(ttl) if ttl else None
@@ -200,9 +195,7 @@ def fetch_external_ids(
 def fetch_media_items(
     client: TautulliClient,
     library_names: list[str],
-    movie_requesters: dict[Any, Any],
-    tv_season_requesters: dict[Any, Any],
-    tv_show_requesters: dict[Any, Any],
+    requesters: RequesterMaps,
     season_level: bool = False,
     cache: Cache | None = None,
 ) -> list[MediaItem]:
@@ -259,9 +252,7 @@ def fetch_media_items(
                         tvdb_id=tvdb_id,
                         season_number=int(season_row.get("media_index") or 0),
                     )
-                    item.requester = get_single_requester(
-                        item, movie_requesters, tv_season_requesters, tv_show_requesters
-                    )
+                    item.requester = get_single_requester(item, requesters)
                     items.append(item)
                 continue
 
@@ -278,9 +269,7 @@ def fetch_media_items(
                 tvdb_id=tvdb_id,
             )
 
-            item.requester = get_single_requester(
-                item, movie_requesters, tv_season_requesters, tv_show_requesters
-            )
+            item.requester = get_single_requester(item, requesters)
             items.append(item)
 
     return items
@@ -302,7 +291,7 @@ def main():
     cache_enabled = not report.disable_cache and config.cache.cache_enabled
     logger.info("cache_enabled=%s", cache_enabled)
 
-    movie_requesters, tv_season_requesters, tv_show_requesters = {}, {}, {}
+    requesters = RequesterMaps()
     # define the clients needed
     tautulli_url, tautulli_api_key = config.tautulli.require_configured("Tautulli")
     tautulli = TautulliClient(
@@ -316,7 +305,7 @@ def main():
         cache.clear()
 
     if config.seerr.api_key and config.seerr.url:
-        movie_requesters, tv_season_requesters, tv_show_requesters = get_requesters(
+        requesters = get_requesters(
             cache,
             config.seerr.url,
             config.seerr.api_key,
@@ -334,9 +323,7 @@ def main():
     items = fetch_media_items(
         tautulli,
         library_names,
-        movie_requesters,
-        tv_season_requesters,
-        tv_show_requesters,
+        requesters,
         season_level,
         cache,
     )
