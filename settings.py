@@ -74,7 +74,7 @@ class ReportSettings(BaseSettings):
         extra="ignore",
     )
 
-    days_unwatched: int = 90
+    days_unwatched: int = 180
     library_names: list[str] = []
     season_level: bool = False
     sort_by: Literal["title", "last_watched", "requester"] = "title"
