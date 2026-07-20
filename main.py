@@ -344,9 +344,14 @@ def main():
     )
 
     if cache_enabled:
+        logger.info(
+            "External id cached: %s hits, %s fetched fresh",
+            cache.ext_hits,
+            cache.ext_misses,
+        )
         if season_level:
             logger.info(
-                "\t Season cache: %s hits, %s misses fetched fresh",
+                "Season cache: %s hits, %s misses fetched fresh",
                 cache.hits,
                 cache.misses,
             )
