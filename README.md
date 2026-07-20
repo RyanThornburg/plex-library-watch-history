@@ -78,7 +78,7 @@ Run with no arguments to use the values from `config.toml`. Available options:
 | `--season-level` / `--no-season-level` | off | Report on individual TV seasons instead of whole shows. |
 | `--sort-by {title,last_watched,requester}` | title | Field to sort results by. |
 | `--sort-order {asc,desc}` | asc | Sort direction. |
-| `--group-by {none,requester}` | none | Group console output by requester. |
+| `--group-by {none,requester,media_type}` | none | Group console output by requester or media type. |
 | `--include-never-watched` / `--no-include-never-watched` | on | Include items that have never been played. |
 | `--include-stale-watched` / `--no-include-stale-watched` | on | Include items that were played but not recently. |
 | `--include-unknown-requester` / `--no-include-unknown-requester` | on | Include items with no known requester. |
@@ -129,7 +129,6 @@ Logs are written to the console and to `logs/main.log`
 
 ## TODO
 
-- [ ] use rich or other console output to make output easier to read
 - [ ] tests
 - [ ] auto delete/remove from arr and plex
 

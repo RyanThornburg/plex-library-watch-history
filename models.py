@@ -19,7 +19,7 @@ MEDIA_TYPE_SEASON = "season"
 
 SortBy = Literal["title", "last_watched", "requester"]
 SortOrder = Literal["asc", "desc"]
-GroupBy = Literal["none", "requester"]
+GroupBy = Literal["none", "requester", "media_type"]
 Status = Literal["never_watched", "stale_watched"]
 
 STATUS_NEVER_WATCHED: Status = "never_watched"

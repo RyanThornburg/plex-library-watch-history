@@ -46,7 +46,7 @@ class SeerrClient:
         response.raise_for_status()
         return response.json()
 
-    def iter_requests(self, page_size: int = 100) -> Generator[Any, Any, None]:
+    def iter_requests(self, page_size: int = 100) -> Generator[Any, None, None]:
         """yield request records handling pagination"""
         skip = 0
         while True:
@@ -192,7 +192,7 @@ class TautulliClient:
         section_id: str | None = None,
         rating_key: str | None = None,
         page_size: int = 500,
-    ) -> Generator[Any, Any, None]:
+    ) -> Generator[Any, None, None]:
         """
         yield every row, handle pagination
         Pass section id to list whole library or rating_key for show to list show seasons

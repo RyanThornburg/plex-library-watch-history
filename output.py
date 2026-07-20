@@ -3,8 +3,14 @@
 import csv
 import logging
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+
+from rich import box
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
 
 from models import (
     STATUS_NEVER_WATCHED,
@@ -30,52 +36,90 @@ def requester_summary(never_watched: list[MediaItem], stale_watched: list[MediaI
     return rows
 
 
-def group_by_requester(items: list[MediaItem]) -> dict[str, list[MediaItem]]:
+def print_console_end(console: Console):
+    console.rule(characters="=")
+
+
+def print_console_header(console: Console, header: str):
+    console.rule(f"[sky_blue1]{header}")
+
+
+_GROUP_KEY_FNS: dict[str, Callable[[MediaItem], str]] = {
+    "requester": lambda item: item.requester,
+    "media_type": lambda item: item.media_type,
+}
+
+
+def group_items(
+    items: list[MediaItem], group_by: GroupBy | None
+) -> dict[str, list[MediaItem]]:
+    """Split items into named groups. A single "" -> items entry means "don't group"."""
+    key_fn = _GROUP_KEY_FNS.get(group_by) if group_by else None
+    if key_fn is None:
+        return {"": items}
+
     groups: dict[str, list[MediaItem]] = defaultdict(list)
     for item in items:
-        groups[item.requester].append(item)
+        groups[key_fn(item)].append(item)
 
     return dict(sorted(groups.items(), key=lambda kv: kv[0].lower()))
 
 
-def format_line(item: MediaItem, status: Status) -> str:
-    when_str = ""
-    if status == STATUS_NEVER_WATCHED:
-        when_str = (
-            f"Never watched (added {item.added_at.strftime('%B %d, %Y')})"
-            if item.added_at
-            else "Never watched"
-        )
-    else:
-        when_str = (
-            item.last_played.strftime("%B %d, %Y") if item.last_played else "Unknown"
-        )
-
-    return f"{item.display_title} - {when_str} - {item.requester}"
+def _build_item_table() -> Table:
+    table = Table(box=box.DOUBLE_EDGE)
+    table.add_column("Requester", style="green")
+    table.add_column("Title", style="magenta")
+    table.add_column("Type", style="yellow")
+    table.add_column("Added", justify="right", style="cyan", no_wrap=True)
+    table.add_column("Last Watched", justify="left", style="cyan", no_wrap=True)
+    return table
 
 
-def print_section(
-    items: list[MediaItem], status: Status, group_by: GroupBy | None, days: int
-):
-    header = (
+def _add_item_row(table: Table, item: MediaItem) -> None:
+    added_at = item.added_at.strftime("%B %d, %Y") if item.added_at else "Unknown"
+    last_played = (
+        item.last_played.strftime("%B %d, %Y") if item.last_played else "Never"
+    )
+    table.add_row(
+        Text(item.requester),
+        Text(item.display_title),
+        item.media_type,
+        added_at,
+        last_played,
+    )
+
+
+def print_table(
+    console: Console,
+    items: list[MediaItem],
+    status: Status,
+    group_by: GroupBy | None,
+    days: int,
+) -> None:
+    title = (
         f"NEVER WATCHED (added {days}+ days ago, 0 plays)"
         if status == STATUS_NEVER_WATCHED
-        else f"STALE (lasted watched {days}+ days ago)"
+        else f"STALE (last watched {days}+ days ago)"
     )
-    print(f"\n*** {header} ***")
 
     if not items:
-        print("NONE!")
+        print_console_header(console, title)
+        console.print("[bold green]No items to report![/bold green]")
+        print_console_end(console)
         return
 
-    if group_by == "requester":
-        for name, group_items in group_by_requester(items).items():
-            print(f"  -- {name} --")
-            for item in group_items:
-                print(f"  {format_line(item, status)}")
-    else:
-        for item in items:
-            print(format_line(item, status))
+    print_console_header(console, title)
+
+    for group_name, group_rows in group_items(items, group_by).items():
+        if group_name:
+            console.print(Text(group_name, style="bold"))
+
+        table = _build_item_table()
+        for item in group_rows:
+            _add_item_row(table, item)
+        console.print(table)
+
+    print_console_end(console)
 
 
 def print_report(
@@ -85,17 +129,28 @@ def print_report(
     group_by: GroupBy | None,
 ) -> None:
     summary = requester_summary(never_watched, stale_watched)
-    print(f"\n*** REQUEST SUMMARY (not watched within {days} days) ***")
+
+    console = Console()
+    header = f"REQUEST SUMMARY (not watched within {days} days)"
     if summary:
-        print(f"{'Requester':<25} {'Never Watched':>14} {'Stale':>8} {'Total':>8}")
+        print_console_header(console, header)
+        table = Table(box=box.DOUBLE_EDGE)
+        table.add_column("Requester", style="green")
+        table.add_column("Never", style="red", justify="right")
+        table.add_column("Stale", style="yellow", justify="right")
+        table.add_column("Total", style="magenta", justify="right")
 
         for name, nc, sc, total in summary:
-            print(f"{name:<25} {nc:>14} {sc:>8} {total:>8}")
-    else:
-        print("NONE!")
+            table.add_row(Text(name), str(nc), str(sc), str(total))
 
-    print_section(never_watched, STATUS_NEVER_WATCHED, group_by, days)
-    print_section(stale_watched, STATUS_STALE_WATCHED, group_by, days)
+        console.print(table)
+    else:
+        print_console_header(console, header)
+        console.print("[bold green]No items to report![/bold green]")
+    print_console_end(console)
+
+    print_table(console, never_watched, STATUS_NEVER_WATCHED, group_by, days)
+    print_table(console, stale_watched, STATUS_STALE_WATCHED, group_by, days)
 
 
 def _csv_row(
