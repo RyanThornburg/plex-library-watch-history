@@ -132,6 +132,7 @@ Logs are written to the console and to `logs/main.log`
 - [ ] improve speed/concurrent calls
   - add a requests.Session() stored on class to reuse
 - [ ] use rich or other console output to make output easier to read
+- [ ] tests
 
 ## License
 
