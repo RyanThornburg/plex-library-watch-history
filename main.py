@@ -320,7 +320,7 @@ def main():
         requesters = get_requesters(
             cache,
             config.seerr.url,
-            config.seerr.api_key,
+            config.seerr.api_key.get_secret_value(),
             config.cache.seer_cache_ttl_hours,
             config.seerr.verify_ssl,
         )

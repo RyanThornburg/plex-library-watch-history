@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -19,7 +19,7 @@ class HelperConfig(BaseModel):
     """Config for tautulli and seerr"""
 
     url: str | None = None
-    api_key: str | None = None
+    api_key: SecretStr | None = None
     verify_ssl: bool = True
 
     def require_configured(self, name: str) -> tuple[str, str]:
@@ -28,7 +28,7 @@ class HelperConfig(BaseModel):
             raise ValueError(
                 f"Missing {name} configuration: url and api_key must be set"
             )
-        return self.url, self.api_key
+        return self.url, self.api_key.get_secret_value()
 
 
 class CacheSettings(BaseModel):
