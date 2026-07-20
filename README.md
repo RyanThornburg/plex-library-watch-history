@@ -1,5 +1,8 @@
 # plex-library-watch-history
 
+> [!NOTE]
+> While working on this I found [Tracearr](https://github.com/connorgallopo/tracearr) which covers most of what I was looking to do here. Because of that, I doubt there will be many updates to this as I test out and use Tracearr instead.
+
 A command-line tool that reports on unwatched and stale media in a Plex library. It reads
 watch history from Tautulli and, optionally, cross-references requests from a Jellyseerr or
 Overseerr instance ("seerr") to show who requested each item.
