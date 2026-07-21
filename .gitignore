@@ -4,3 +4,5 @@ __pycache__
 .python-version
 *.csv
 *.json
+.coverage
+.pytest_cache

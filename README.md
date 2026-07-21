@@ -127,9 +127,12 @@ The cache is stored as JSON at the path set by `cache.cache_file` (default
 
 Logs are written to the console and to `logs/main.log`
 
+## Tests
+
+`uv run pytest`
+
 ## TODO
 
-- [ ] tests
 - [ ] auto delete/remove from arr and plex
 
 ## License
