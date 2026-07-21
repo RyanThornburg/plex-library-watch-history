@@ -1,3 +1,5 @@
+import json
+
 import pytest
 import responses
 from responses import matchers
@@ -103,6 +105,58 @@ def test_tautulli_iter_items_stops_on_empty_page():
 
 
 @responses.activate
+def test_tautulli_get_library_media_info_passes_refresh_true():
+    client = TautulliClient(url="http://tautulli.example", api_key="key")
+
+    def request_callback(request):
+        assert "refresh=true" in request.url
+        return (200, {}, '{"response": {"result": "success", "data": {}}}')
+
+    responses.add_callback(
+        responses.GET, "http://tautulli.example/api/v2", callback=request_callback
+    )
+    client.get_library_media_info(section_id="5", refresh=True)
+
+
+@responses.activate
+def test_tautulli_get_library_media_info_omits_refresh_by_default():
+    client = TautulliClient(url="http://tautulli.example", api_key="key")
+
+    def request_callback(request):
+        assert "refresh" not in request.url
+        return (200, {}, '{"response": {"result": "success", "data": {}}}')
+
+    responses.add_callback(
+        responses.GET, "http://tautulli.example/api/v2", callback=request_callback
+    )
+    client.get_library_media_info(section_id="5")
+
+
+@responses.activate
+def test_tautulli_iter_items_only_passes_refresh_on_first_page():
+    client = TautulliClient(url="http://tautulli.example", api_key="key")
+    page1 = {"response": {"result": "success", "data": {"data": [{"id": 1}, {"id": 2}]}}}
+    page2 = {"response": {"result": "success", "data": {"data": [{"id": 3}]}}}
+    pages = [page1, page2]
+    seen_refresh = []
+
+    def request_callback(request):
+        seen_refresh.append("refresh=true" in request.url)
+        return (200, {}, json.dumps(pages.pop(0)))
+
+    responses.add_callback(
+        responses.GET, "http://tautulli.example/api/v2", callback=request_callback
+    )
+    responses.add_callback(
+        responses.GET, "http://tautulli.example/api/v2", callback=request_callback
+    )
+
+    items = list(client.iter_items(section_id="1", page_size=2, refresh=True))
+    assert items == [{"id": 1}, {"id": 2}, {"id": 3}]
+    assert seen_refresh == [True, False]
+
+
+@responses.activate
 def test_tautulli_get_metadata():
     client = TautulliClient(url="http://tautulli.example", api_key="key")
     responses.add(
@@ -111,6 +165,32 @@ def test_tautulli_get_metadata():
         json={"response": {"result": "success", "data": {"guid": "abc"}}},
     )
     assert client.get_metadata("42") == {"guid": "abc"}
+
+
+@responses.activate
+def test_tautulli_get_history_passes_parent_rating_key_and_sort():
+    client = TautulliClient(url="http://tautulli.example", api_key="key")
+
+    def request_callback(request):
+        assert "parent_rating_key=50" in request.url
+        assert "order_column=date" in request.url
+        assert "order_dir=desc" in request.url
+        assert "length=1" in request.url
+        body = json.dumps(
+            {
+                "response": {
+                    "result": "success",
+                    "data": {"recordsFiltered": 3, "data": [{"date": 123}]},
+                }
+            }
+        )
+        return (200, {}, body)
+
+    responses.add_callback(
+        responses.GET, "http://tautulli.example/api/v2", callback=request_callback
+    )
+    result = client.get_history(parent_rating_key="50")
+    assert result == {"recordsFiltered": 3, "data": [{"date": 123}]}
 
 
 #################################################

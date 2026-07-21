@@ -76,6 +76,19 @@ def test_make_sort_key_last_watched_falls_back_to_epoch_min(make_media_item):
     assert key_fn(item)[0] == datetime.min.replace(tzinfo=timezone.utc)
 
 
+def test_make_sort_key_added(make_media_item):
+    key_fn = main.make_sort_key("added")
+    added = datetime(2019, 1, 1, tzinfo=timezone.utc)
+    item = make_media_item(added_at=added, last_played=datetime(2020, 1, 1, tzinfo=timezone.utc))
+    assert key_fn(item)[0] == added
+
+
+def test_make_sort_key_added_falls_back_to_epoch_min(make_media_item):
+    key_fn = main.make_sort_key("added")
+    item = make_media_item(added_at=None)
+    assert key_fn(item)[0] == datetime.min.replace(tzinfo=timezone.utc)
+
+
 #################################################
 # categorize_watches
 #################################################
@@ -312,27 +325,100 @@ def test_fetch_external_ids_no_cache_always_calls_client():
 
 
 #################################################
+# _season_watch_stats
+#################################################
+def test_season_watch_stats_returns_last_played_and_play_count():
+    client = MagicMock()
+    client.get_history.return_value = {"recordsFiltered": 7, "data": [{"date": 1700000000}]}
+    last_played, play_count = main._season_watch_stats(client, "55")
+    assert play_count == 7
+    assert last_played == main._to_datetime("1700000000")
+    client.get_history.assert_called_once_with(parent_rating_key="55", length=1)
+
+
+def test_season_watch_stats_no_history_returns_none_and_zero():
+    client = MagicMock()
+    client.get_history.return_value = {"recordsFiltered": 0, "data": []}
+    last_played, play_count = main._season_watch_stats(client, "55")
+    assert last_played is None
+    assert play_count == 0
+
+
+#################################################
+# _row_looks_falsely_unwatched
+#################################################
+def test_row_looks_falsely_unwatched_true_when_no_play_data_and_old():
+    old_epoch = str(int((datetime.now(timezone.utc) - timedelta(days=400)).timestamp()))
+    row = {"last_played": None, "play_count": None, "added_at": old_epoch}
+    assert main._row_looks_falsely_unwatched(row, days=180) is True
+
+
+def test_row_looks_falsely_unwatched_false_when_has_play_count():
+    row = {"last_played": None, "play_count": 3, "added_at": "1700000000"}
+    assert main._row_looks_falsely_unwatched(row, days=180) is False
+
+
+def test_row_looks_falsely_unwatched_false_when_has_last_played():
+    row = {"last_played": "1700000000", "play_count": 0, "added_at": "1700000000"}
+    assert main._row_looks_falsely_unwatched(row, days=180) is False
+
+
+def test_row_looks_falsely_unwatched_false_when_added_at_missing():
+    row = {"last_played": None, "play_count": 0, "added_at": None}
+    assert main._row_looks_falsely_unwatched(row, days=180) is False
+
+
+def test_row_looks_falsely_unwatched_false_when_too_recent():
+    recent_epoch = str(int((datetime.now(timezone.utc) - timedelta(days=5)).timestamp()))
+    row = {"last_played": None, "play_count": 0, "added_at": recent_epoch}
+    assert main._row_looks_falsely_unwatched(row, days=180) is False
+
+
+#################################################
 # fetch_media_items
 #################################################
 class _FakeTautulliClient(TautulliClient):
-    def __init__(self, libraries, items_by_section, items_by_rating_key=None, metadata=None):
+    def __init__(
+        self,
+        libraries,
+        items_by_section,
+        items_by_rating_key=None,
+        metadata=None,
+        refreshed_items_by_section=None,
+        history_by_rating_key=None,
+    ):
         super().__init__(url="http://fake-tautulli", api_key="key")
         self._libraries = libraries
         self._items_by_section = items_by_section
         self._items_by_rating_key = items_by_rating_key or {}
         self._metadata = metadata or {}
+        self._refreshed_items_by_section = refreshed_items_by_section or {}
+        self._history_by_rating_key = history_by_rating_key or {}
+        self.iter_items_calls = []
 
     def get_libraries(self):
         return self._libraries
 
-    def iter_items(self, section_id=None, rating_key=None):
+    def iter_items(self, section_id=None, rating_key=None, page_size=500, refresh=False):
+        self.iter_items_calls.append(
+            {"section_id": section_id, "rating_key": rating_key, "refresh": refresh}
+        )
         if rating_key is not None:
             yield from self._items_by_rating_key.get(rating_key, [])
+        elif refresh:
+            yield from self._refreshed_items_by_section.get(
+                section_id, self._items_by_section.get(section_id, [])
+            )
         else:
             yield from self._items_by_section.get(section_id, [])
 
     def get_metadata(self, rating_key):
         return self._metadata.get(rating_key, {})
+
+    def get_history(self, parent_rating_key, length=1):
+        return self._history_by_rating_key.get(
+            parent_rating_key, {"recordsFiltered": 0, "data": []}
+        )
 
 
 def test_fetch_media_items_filters_to_movie_and_show_libraries():
@@ -341,7 +427,7 @@ def test_fetch_media_items_filters_to_movie_and_show_libraries():
         {"section_id": "2", "section_name": "Music", "section_type": "artist"},
     ]
     client = _FakeTautulliClient(libraries, items_by_section={"1": []})
-    items = main.fetch_media_items(client, [], RequesterMaps())
+    items = main.fetch_media_items(client, [], RequesterMaps(), days=180)
     assert items == []
 
 
@@ -357,7 +443,7 @@ def test_fetch_media_items_filters_by_library_names():
             "2": [],
         },
     )
-    items = main.fetch_media_items(client, ["movies"], RequesterMaps())
+    items = main.fetch_media_items(client, ["movies"], RequesterMaps(), days=180)
     assert len(items) == 1
     assert items[0].title == "M1"
 
@@ -380,12 +466,64 @@ def test_fetch_media_items_builds_movie_item_with_requester():
         metadata={"10": {"guids": [{"id": "tmdb://55"}]}},
     )
     requesters = RequesterMaps(movies={"55": "Alice"})
-    items = main.fetch_media_items(client, [], requesters)
+    items = main.fetch_media_items(client, [], requesters, days=180)
     assert len(items) == 1
     item = items[0]
     assert item.moviedb_id == "55"
     assert item.requester == "Alice"
     assert item.media_type == MEDIA_TYPE_MOVIE
+
+
+def test_fetch_media_items_skips_refresh_when_row_has_play_data():
+    libraries = [{"section_id": "1", "section_name": "Movies", "section_type": "movie"}]
+    row = {
+        "rating_key": "10",
+        "title": "M1",
+        "added_at": "1700000000",
+        "last_played": "1700000001",
+        "play_count": 3,
+    }
+    client = _FakeTautulliClient(libraries, items_by_section={"1": [row]})
+    items = main.fetch_media_items(client, [], RequesterMaps(), days=180)
+    assert len(items) == 1
+    assert [call["refresh"] for call in client.iter_items_calls] == [False]
+
+
+def test_fetch_media_items_skips_refresh_when_item_too_new_to_report():
+    recent_epoch = str(int((datetime.now(timezone.utc) - timedelta(days=5)).timestamp()))
+    libraries = [{"section_id": "1", "section_name": "Movies", "section_type": "movie"}]
+    row = {
+        "rating_key": "10",
+        "title": "M1",
+        "added_at": recent_epoch,
+        "last_played": None,
+        "play_count": 0,
+    }
+    client = _FakeTautulliClient(libraries, items_by_section={"1": [row]})
+    main.fetch_media_items(client, [], RequesterMaps(), days=180)
+    assert [call["refresh"] for call in client.iter_items_calls] == [False]
+
+
+def test_fetch_media_items_forces_refresh_when_row_looks_falsely_unwatched():
+    libraries = [{"section_id": "1", "section_name": "Movies", "section_type": "movie"}]
+    stale_row = {
+        "rating_key": "10",
+        "title": "M1",
+        "added_at": "1700000000",
+        "last_played": None,
+        "play_count": None,
+    }
+    refreshed_row = {**stale_row, "last_played": "1750000000", "play_count": 5}
+    client = _FakeTautulliClient(
+        libraries,
+        items_by_section={"1": [stale_row]},
+        refreshed_items_by_section={"1": [refreshed_row]},
+    )
+    items = main.fetch_media_items(client, [], RequesterMaps(), days=180)
+    assert len(items) == 1
+    assert items[0].play_count == 5
+    assert items[0].last_played == main._to_datetime("1750000000")
+    assert [call["refresh"] for call in client.iter_items_calls] == [False, True]
 
 
 def test_fetch_media_items_season_level_expands_seasons_and_uses_cache(tmp_path):
@@ -395,8 +533,8 @@ def test_fetch_media_items_season_level_expands_seasons_and_uses_cache(tmp_path)
         "title": "Show A",
         "media_type": "show",
         "added_at": "1700000000",
-        "last_played": None,
-        "play_count": 0,
+        "last_played": "1700000001",
+        "play_count": 3,
     }
     season_rows = [
         {
@@ -405,7 +543,7 @@ def test_fetch_media_items_season_level_expands_seasons_and_uses_cache(tmp_path)
             "media_index": "1",
             "added_at": "1700000000",
             "last_played": None,
-            "play_count": 0,
+            "play_count": None,
         },
         {"rating_key": "22", "media_type": "episode"},  # should be filtered out
     ]
@@ -418,7 +556,7 @@ def test_fetch_media_items_season_level_expands_seasons_and_uses_cache(tmp_path)
     cache = Cache(tmp_path / "c.json", enabled=True)
     requesters = RequesterMaps()
 
-    items = main.fetch_media_items(client, [], requesters, season_level=True, cache=cache)
+    items = main.fetch_media_items(client, [], requesters, days=180, season_level=True, cache=cache)
     assert len(items) == 1
     assert items[0].media_type == MEDIA_TYPE_SEASON
     assert items[0].season_number == 1
@@ -426,8 +564,53 @@ def test_fetch_media_items_season_level_expands_seasons_and_uses_cache(tmp_path)
 
     # second call should hit the season cache instead of iterating rating_key again
     client._items_by_rating_key = {}
-    items_again = main.fetch_media_items(client, [], requesters, season_level=True, cache=cache)
+    items_again = main.fetch_media_items(
+        client, [], requesters, days=180, season_level=True, cache=cache
+    )
     assert len(items_again) == 1
+
+
+def test_fetch_media_items_season_level_pulls_stats_from_get_history(tmp_path):
+    """get_library_media_info never carries season-level play stats, so
+    season rows have to be patched from get_history before being cached."""
+    libraries = [{"section_id": "1", "section_name": "TV", "section_type": "show"}]
+    show_row = {
+        "rating_key": "20",
+        "title": "Show A",
+        "media_type": "show",
+        "added_at": "1700000000",
+        "last_played": "1750000000",
+        "play_count": 10,
+    }
+    season_row = {
+        "rating_key": "21",
+        "media_type": MEDIA_TYPE_SEASON,
+        "media_index": "1",
+        "added_at": "1700000000",
+        "last_played": None,
+        "play_count": None,
+    }
+    client = _FakeTautulliClient(
+        libraries,
+        items_by_section={"1": [show_row]},
+        items_by_rating_key={"20": [season_row]},
+        metadata={"20": {}},
+        history_by_rating_key={"21": {"recordsFiltered": 4, "data": [{"date": 1751000000}]}},
+    )
+    cache = Cache(tmp_path / "c.json", enabled=True)
+
+    items = main.fetch_media_items(
+        client, [], RequesterMaps(), days=180, season_level=True, cache=cache
+    )
+    assert len(items) == 1
+    assert items[0].play_count == 4
+    assert items[0].last_played == main._to_datetime("1751000000")
+
+    # the corrected stats should be what gets cached, not the original nulls
+    cached_seasons = cache.get_show_seasons("20", show_row)
+    assert cached_seasons is not None
+    assert cached_seasons[0]["play_count"] == 4
+    assert cached_seasons[0]["last_played"] == 1751000000
 
 
 def test_fetch_media_items_without_season_level_keeps_show_as_single_item():
@@ -437,11 +620,11 @@ def test_fetch_media_items_without_season_level_keeps_show_as_single_item():
         "title": "Show A",
         "media_type": "show",
         "added_at": "1700000000",
-        "last_played": None,
-        "play_count": 0,
+        "last_played": "1700000001",
+        "play_count": 2,
     }
     client = _FakeTautulliClient(libraries, items_by_section={"1": [show_row]})
-    items = main.fetch_media_items(client, [], RequesterMaps(), season_level=False)
+    items = main.fetch_media_items(client, [], RequesterMaps(), days=180, season_level=False)
     assert len(items) == 1
     assert items[0].media_type == "show"
     assert items[0].season_number is None
