@@ -58,9 +58,8 @@ class SeerrClient:
                 return
             yield from results
 
-            page_info = page.get("pageInfo", {})
             skip += len(results)
-            if skip >= page_info.get("results", skip):
+            if len(results) < page_size:
                 return
 
     def fetch_all_requests(self) -> list[Any]:
@@ -211,7 +210,6 @@ class TautulliClient:
                 return
             yield from rows
 
-            total = int(page.get("recordsFiltered", 0))
             start += len(rows)
-            if start >= total:
+            if len(rows) < page_size:
                 return
