@@ -24,7 +24,7 @@ class SeerrClient:
     """client for reading data from seerr"""
 
     url: str
-    api_key: str
+    api_key: str = field(repr=False)
     session: requests.Session = field(
         init=False, default_factory=requests.Session, repr=False
     )
@@ -129,7 +129,7 @@ class TautulliClient:
     """client for reading data from tautulli"""
 
     url: str
-    api_key: str
+    api_key: str = field(repr=False)
     session: requests.Session = field(
         init=False, default_factory=requests.Session, repr=False
     )
