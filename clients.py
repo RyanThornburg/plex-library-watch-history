@@ -160,12 +160,32 @@ class TautulliClient:
         """full meta data for item - need to call for guid to link seerr data"""
         return self._call("get_metadata", rating_key=rating_key)
 
+    def get_history(
+        self,
+        parent_rating_key: str,
+        length: int = 1,
+    ) -> dict[str, Any]:
+        """
+        most recent play history for an item's children, e.g. a season's episodes.
+        get_library_media_info never populates last_played/play_count for season
+        rows, so season-level watch stats have to come from here instead.
+        """
+        return self._call(
+            "get_history",
+            parent_rating_key=parent_rating_key,
+            order_column="date",
+            order_dir="desc",
+            start=0,
+            length=length,
+        )
+
     def get_library_media_info(
         self,
         section_id: str | None = None,
         rating_key: str | None = None,
         start: int = 0,
         length: int = 500,
+        refresh: bool = False,
     ) -> dict[str, Any]:
         """get media based on section or rating key"""
 
@@ -180,6 +200,11 @@ class TautulliClient:
             params["section_id"] = section_id
         if rating_key is not None:
             params["rating_key"] = rating_key
+        if refresh:
+            # Tautulli's library_media_info table can hold an orphaned rating_key
+            # for an item after Plex reassigns it one (e.g. a rematch) - refresh
+            # forces a live resync from Plex instead of reading that stale table.
+            params["refresh"] = "true"
 
         return self._call("get_library_media_info", **params)
 
@@ -188,6 +213,7 @@ class TautulliClient:
         section_id: str | None = None,
         rating_key: str | None = None,
         page_size: int = 500,
+        refresh: bool = False,
     ) -> Generator[Any, None, None]:
         """
         yield every row, handle pagination
@@ -195,13 +221,18 @@ class TautulliClient:
         """
 
         start = 0
+        first_page = True
         while True:
             page: dict[str, Any] = self.get_library_media_info(
                 section_id=section_id,
                 rating_key=rating_key,
                 start=start,
                 length=page_size,
+                # only force the resync once per call - the underlying table
+                # is synced for every page after that
+                refresh=refresh and first_page,
             )
+            first_page = False
             rows: list[Any] = page.get("data", [])
             if not rows:
                 return

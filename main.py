@@ -87,7 +87,9 @@ def make_sort_key(sort_by: SortBy):
         if sort_by == "last_watched":
             date = item.last_played or item.added_at or epoch_min
             return (date, item.title.lower(), item.season_number or 0)
-
+        if sort_by == "added":
+            date = item.added_at or epoch_min
+            return (date, item.title.lower(), item.season_number or 0)
         if sort_by == "requester":
             return (item.requester.lower(), item.title.lower(), item.season_number or 0)
 
@@ -220,10 +222,43 @@ def fetch_external_ids(
     return tmdb_id, tvdb_id
 
 
+def _season_watch_stats(
+    client: TautulliClient, season_rating_key: str
+) -> tuple[datetime | None, int]:
+    """
+    get_library_media_info never fills in last_played/play_count on season
+    rows (verified against a live Tautulli instance - even with a forced
+    refresh, those fields come back null for every season). get_history
+    filtered by parent_rating_key does carry real per-season watch data, so
+    that's the only reliable source for season-level stats.
+    """
+    data = client.get_history(parent_rating_key=season_rating_key, length=1)
+    play_count = int(data.get("recordsFiltered") or 0)
+    rows = data.get("data", [])
+    last_played = _to_datetime(str(rows[0]["date"])) if rows else None
+    return last_played, play_count
+
+
+def _row_looks_falsely_unwatched(row: dict[str, Any], days: int) -> bool:
+    """
+    True if a row has no play data but is old enough it would be reported as
+    never-watched. Tautulli's library_media_info table can keep an orphaned
+    rating_key for an item after Plex reassigns it one (e.g. a rematch), which
+    surfaces as a real watch history reporting as if it were never watched.
+    """
+    if row.get("last_played") or row.get("play_count"):
+        return False
+    added_at = _to_datetime(row.get("added_at"))
+    if added_at is None:
+        return False
+    return (datetime.now(timezone.utc) - added_at).days >= days
+
+
 def fetch_media_items(
     client: TautulliClient,
     library_names: list[str],
     requesters: RequesterMaps,
+    days: int,
     season_level: bool = False,
     cache: Cache | None = None,
 ) -> list[MediaItem]:
@@ -254,7 +289,17 @@ def fetch_media_items(
 
         logger.info("Scanning library: %s (%s)...", section_name, section_type)
 
-        for row in client.iter_items(section_id=section_id):
+        rows = list(client.iter_items(section_id=section_id))
+        if any(_row_looks_falsely_unwatched(row, days) for row in rows):
+            logger.info(
+                "Found items in %s with no play data past the %s day threshold; "
+                "forcing a live Tautulli refresh to rule out a stale cache",
+                section_name,
+                days,
+            )
+            rows = list(client.iter_items(section_id=section_id, refresh=True))
+
+        for row in rows:
             row_media_type = row.get("media_type") or section_type
             rating_key = str(row.get("rating_key", ""))
 
@@ -267,6 +312,16 @@ def fetch_media_items(
                 season_rows = cache.get_show_seasons(rating_key, row) if cache else None
                 if season_rows is None:
                     season_rows = list(client.iter_items(rating_key=rating_key))
+                    for season_row in season_rows:
+                        if season_row.get("media_type") != MEDIA_TYPE_SEASON:
+                            continue
+                        last_played, play_count = _season_watch_stats(
+                            client, str(season_row.get("rating_key", ""))
+                        )
+                        season_row["last_played"] = (
+                            int(last_played.timestamp()) if last_played else None
+                        )
+                        season_row["play_count"] = play_count
                     if cache:
                         cache.set_show_seasons(rating_key, row, season_rows)
 
@@ -356,6 +411,7 @@ def main():
         tautulli,
         library_names,
         requesters,
+        days,
         season_level,
         cache,
     )
