@@ -11,9 +11,12 @@ Run: `uv run main.py --help`
 import logging
 import logging.handlers
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+import requests
 
 from cache import Cache
 from clients import SeerrClient, TautulliClient
@@ -108,23 +111,25 @@ def categorize_watches(
         if not include_unknown and item.requester == UNKNOWN_REQUESTER:
             continue
         if item.play_count == 0:
-            if item.days_since_added is None:
+            days_since_added = item.days_since_added
+            if days_since_added is None:
                 logger.warning(
                     "Skipping %r (rating_key=%s): no added_at date from Tautulli",
                     item.title,
                     item.rating_key,
                 )
-            elif item.days_since_added >= days:
+            elif days_since_added >= days:
                 never_watched.append(item)
         else:
-            if item.days_since_watched is None:
+            days_since_watched = item.days_since_watched
+            if days_since_watched is None:
                 logger.warning(
                     "Skipping %r (rating_key=%s): no last_played date despite play_count=%s",
                     item.title,
                     item.rating_key,
                     item.play_count,
                 )
-            elif item.days_since_watched >= days:
+            elif days_since_watched >= days:
                 stale_watched.append(item)
 
     key_fn = make_sort_key(sort_by)
@@ -235,7 +240,9 @@ def fetch_media_items(
     if library_names:
         wanted = {name.lower() for name in library_names}
         libraries = [
-            lib for lib in libraries if lib.get("section_name", "").lower() in wanted
+            lib
+            for lib in libraries
+            if (lib.get("section_name") or "").lower() in wanted
         ]
 
     items: list[MediaItem] = []
@@ -248,14 +255,14 @@ def fetch_media_items(
         logger.info("Scanning library: %s (%s)...", section_name, section_type)
 
         for row in client.iter_items(section_id=section_id):
-            row_media_type = row.get("media_type", section_type)
+            row_media_type = row.get("media_type") or section_type
             rating_key = str(row.get("rating_key", ""))
 
             # fetch guid ids for matching to seerr data
             tmdb_id, tvdb_id = fetch_external_ids(client, rating_key, cache)
 
             if row_media_type == MEDIA_TYPE_SHOW and season_level:
-                show_title = row.get("title", UNKNOWN_TITLE)
+                show_title = row.get("title") or UNKNOWN_TITLE
 
                 season_rows = cache.get_show_seasons(rating_key, row) if cache else None
                 if season_rows is None:
@@ -283,7 +290,7 @@ def fetch_media_items(
 
             # movie or whole show
             item = MediaItem(
-                title=row.get("title", UNKNOWN_TITLE),
+                title=row.get("title") or UNKNOWN_TITLE,
                 media_type=row_media_type,
                 library_name=section_name,
                 rating_key=str(row.get("rating_key", "")),
@@ -383,4 +390,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, RuntimeError, requests.RequestException) as e:
+        logger.error(e)
+        sys.exit(1)

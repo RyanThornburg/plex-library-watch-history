@@ -36,7 +36,7 @@ class SeerrClient:
         self.endpoint = f"{self.url}/api/v1"
         self.session.headers["X-Api-Key"] = self.api_key
 
-    def _get(self, path: str, **params: Any) -> dict[Any, Any]:
+    def _get(self, path: str, **params: Any) -> dict[str, Any]:
         response = self.session.get(
             f"{self.endpoint}{path}",
             params=params,
@@ -82,15 +82,12 @@ class SeerrClient:
         for req in requests_list:
             media: dict[str, Any] = req.get("media", {}) or {}
             requested_by: dict[str, Any] = req.get("requestedBy", {}) or {}
+            user_id = requested_by.get("id")
             username = (
                 requested_by.get("displayName")
                 or requested_by.get("username")
                 or requested_by.get("plexUsername")
-                or (
-                    f"user#{requested_by['id']}"
-                    if requested_by.get("id")
-                    else UNKNOWN_REQUESTER
-                )
+                or (f"user#{user_id}" if user_id is not None else UNKNOWN_REQUESTER)
             )
 
             media_type: str | None = media.get("mediaType")
@@ -155,7 +152,7 @@ class TautulliClient:
 
         return result.get("data", {})
 
-    def get_libraries(self) -> list[dict[Any, Any]]:
+    def get_libraries(self) -> list[dict[str, Any]]:
         """get libraries"""
         return self._call("get_libraries")
 

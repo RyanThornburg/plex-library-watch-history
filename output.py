@@ -2,7 +2,7 @@
 
 import csv
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -23,15 +23,14 @@ from models import (
 logger = logging.getLogger(__name__)
 
 
-def requester_summary(never_watched: list[MediaItem], stale_watched: list[MediaItem]):
+def requester_summary(
+    never_watched: list[MediaItem], stale_watched: list[MediaItem]
+) -> list[tuple[str, int, int, int]]:
     """return list of (requester, never, stale, total) sorted by total"""
-    counts: dict[str, list[int]] = defaultdict(lambda: [0, 0])
-    for item in never_watched:
-        counts[item.requester][0] += 1
-    for item in stale_watched:
-        counts[item.requester][1] += 1
-
-    rows = [(name, nc, sc, nc + sc) for name, (nc, sc) in counts.items()]
+    never = Counter(item.requester for item in never_watched)
+    stale = Counter(item.requester for item in stale_watched)
+    names = never.keys() | stale.keys()
+    rows = [(n, never[n], stale[n], never[n] + stale[n]) for n in names]
     rows.sort(key=lambda r: (-r[3], r[0].lower()))
     return rows
 
@@ -54,7 +53,7 @@ def group_items(
     items: list[MediaItem], group_by: GroupBy | None
 ) -> dict[str, list[MediaItem]]:
     """Split items into named groups. A single "" -> items entry means "don't group"."""
-    key_fn = _GROUP_KEY_FNS.get(group_by) if group_by else None
+    key_fn = _GROUP_KEY_FNS.get(group_by) if group_by is not None else None
     if key_fn is None:
         return {"": items}
 
@@ -66,7 +65,7 @@ def group_items(
 
 
 def _build_item_table() -> Table:
-    table = Table(box=box.DOUBLE_EDGE)
+    table = _build_summary_table()
     table.add_column("Requester", style="green")
     table.add_column("Title", style="magenta")
     table.add_column("Type", style="yellow")
@@ -75,11 +74,16 @@ def _build_item_table() -> Table:
     return table
 
 
+def _build_summary_table() -> Table:
+    return Table(box=box.DOUBLE_EDGE)
+
+
 def _add_item_row(table: Table, item: MediaItem) -> None:
     added_at = item.added_at.strftime("%B %d, %Y") if item.added_at else "Unknown"
     last_played = (
         item.last_played.strftime("%B %d, %Y") if item.last_played else "Never"
     )
+    # only requester and display title need the Text wraopper
     table.add_row(
         Text(item.requester),
         Text(item.display_title),
@@ -134,12 +138,13 @@ def print_report(
     header = f"REQUEST SUMMARY (not watched within {days} days)"
     if summary:
         print_console_header(console, header)
-        table = Table(box=box.DOUBLE_EDGE)
+        table = _build_summary_table()
         table.add_column("Requester", style="green")
         table.add_column("Never", style="red", justify="right")
         table.add_column("Stale", style="yellow", justify="right")
         table.add_column("Total", style="magenta", justify="right")
 
+        # only need text wrapper on name
         for name, nc, sc, total in summary:
             table.add_row(Text(name), str(nc), str(sc), str(total))
 
@@ -172,7 +177,7 @@ def _csv_row(
 def export_csv(
     path: Path, never_watched: list[MediaItem], stale_watched: list[MediaItem]
 ):
-    with path.open("w", newline="") as f:
+    with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(
             [
