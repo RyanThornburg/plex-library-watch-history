@@ -108,10 +108,23 @@ def categorize_watches(
         if not include_unknown and item.requester == UNKNOWN_REQUESTER:
             continue
         if item.play_count == 0:
-            if item.days_since_added is not None and item.days_since_added >= days:
+            if item.days_since_added is None:
+                logger.warning(
+                    "Skipping %r (rating_key=%s): no added_at date from Tautulli",
+                    item.title,
+                    item.rating_key,
+                )
+            elif item.days_since_added >= days:
                 never_watched.append(item)
         else:
-            if item.days_since_watched is not None and item.days_since_watched >= days:
+            if item.days_since_watched is None:
+                logger.warning(
+                    "Skipping %r (rating_key=%s): no last_played date despite play_count=%s",
+                    item.title,
+                    item.rating_key,
+                    item.play_count,
+                )
+            elif item.days_since_watched >= days:
                 stale_watched.append(item)
 
     key_fn = make_sort_key(sort_by)
